@@ -1,0 +1,748 @@
+<!DOCTYPE html>
+<html lang="ja">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>競合他社 潜入先 担当振り分けシート</title>
+    <link
+        href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Noto+Sans+JP:wght@400;500;600;700&display=swap"
+        rel="stylesheet">
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js"></script>
+    <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js"></script>
+    <style>
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Noto Sans JP', 'Inter', sans-serif;
+            background: #0f172a;
+            color: #e2e8f0;
+            min-height: 100vh;
+        }
+
+        .header {
+            background: linear-gradient(135deg, #1e293b 0%, #0f172a 100%);
+            border-bottom: 1px solid #334155;
+            padding: 24px 32px;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .header h1 {
+            font-size: 1.4rem;
+            font-weight: 700;
+            background: linear-gradient(135deg, #60a5fa, #a78bfa);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+        }
+
+        .header-sub {
+            font-size: 0.85rem;
+            color: #94a3b8;
+            margin-top: 4px;
+        }
+
+        .header-actions {
+            display: flex;
+            gap: 12px;
+            align-items: center;
+        }
+
+        .sync-status {
+            font-size: 0.8rem;
+            color: #34d399;
+            display: flex;
+            align-items: center;
+            gap: 6px;
+        }
+
+        .sync-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: #34d399;
+            animation: pulse 2s infinite;
+        }
+
+        @keyframes pulse {
+
+            0%,
+            100% {
+                opacity: 1;
+            }
+
+            50% {
+                opacity: 0.4;
+            }
+        }
+
+        .btn {
+            padding: 10px 20px;
+            border: none;
+            border-radius: 8px;
+            font-size: 0.85rem;
+            font-weight: 600;
+            cursor: pointer;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .btn-secondary {
+            background: #1e293b;
+            color: #94a3b8;
+            border: 1px solid #334155;
+        }
+
+        .btn-secondary:hover {
+            background: #334155;
+            color: #e2e8f0;
+        }
+
+        .btn-export {
+            background: linear-gradient(135deg, #10b981, #059669);
+            color: white;
+        }
+
+        .btn-export:hover {
+            transform: translateY(-1px);
+            box-shadow: 0 4px 12px rgba(16, 185, 129, 0.4);
+        }
+
+        /* Summary Cards */
+        .summary-bar {
+            display: flex;
+            gap: 16px;
+            padding: 20px 32px;
+            background: #1e293b;
+            border-bottom: 1px solid #334155;
+            flex-wrap: wrap;
+        }
+
+        .summary-card {
+            background: #0f172a;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 14px 20px;
+            min-width: 120px;
+            flex: 1;
+        }
+
+        .summary-card .label {
+            font-size: 0.75rem;
+            color: #64748b;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            margin-bottom: 4px;
+        }
+
+        .summary-card .value {
+            font-size: 1.5rem;
+            font-weight: 700;
+        }
+
+        .summary-card.total .value {
+            color: #60a5fa;
+        }
+
+        .summary-card.shuya .value {
+            color: #34d399;
+        }
+
+        .summary-card.miko .value {
+            color: #a78bfa;
+        }
+
+        .summary-card.hiyo .value {
+            color: #f472b6;
+        }
+
+        .summary-card.unassigned .value {
+            color: #94a3b8;
+        }
+
+        /* Filter Bar */
+        .filter-bar {
+            display: flex;
+            gap: 8px;
+            padding: 16px 32px;
+            flex-wrap: wrap;
+        }
+
+        .filter-btn {
+            padding: 6px 16px;
+            border-radius: 20px;
+            font-size: 0.8rem;
+            font-weight: 500;
+            cursor: pointer;
+            border: 1px solid #334155;
+            background: transparent;
+            color: #94a3b8;
+            transition: all 0.2s;
+            font-family: inherit;
+        }
+
+        .filter-btn.active {
+            background: #3b82f6;
+            border-color: #3b82f6;
+            color: white;
+        }
+
+        .filter-btn:hover:not(.active) {
+            background: #1e293b;
+            color: #e2e8f0;
+        }
+
+        /* Table */
+        .table-container {
+            padding: 0 32px 40px;
+            overflow-x: auto;
+        }
+
+        table {
+            width: 100%;
+            border-collapse: separate;
+            border-spacing: 0;
+            border: 1px solid #334155;
+            border-radius: 12px;
+            overflow: hidden;
+        }
+
+        thead {
+            background: #1e293b;
+        }
+
+        th {
+            padding: 14px 16px;
+            text-align: left;
+            font-size: 0.75rem;
+            font-weight: 600;
+            color: #94a3b8;
+            text-transform: uppercase;
+            letter-spacing: 0.05em;
+            border-bottom: 2px solid #334155;
+            white-space: nowrap;
+        }
+
+        td {
+            padding: 12px 16px;
+            font-size: 0.9rem;
+            border-bottom: 1px solid #1e293b;
+            vertical-align: top;
+        }
+
+        tbody tr {
+            transition: background 0.15s;
+        }
+
+        tbody tr:hover {
+            background: rgba(59, 130, 246, 0.05);
+        }
+
+        .tier {
+            display: inline-block;
+            padding: 3px 10px;
+            border-radius: 6px;
+            font-size: 0.75rem;
+            font-weight: 700;
+        }
+
+        .tier-1 {
+            background: rgba(239, 68, 68, 0.15);
+            color: #f87171;
+        }
+
+        .tier-2 {
+            background: rgba(234, 179, 8, 0.15);
+            color: #facc15;
+        }
+
+        .tier-3 {
+            background: rgba(34, 197, 94, 0.15);
+            color: #4ade80;
+        }
+
+        .stars {
+            color: #fbbf24;
+            letter-spacing: 1px;
+            font-size: 0.85rem;
+        }
+
+        select {
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: #e2e8f0;
+            padding: 8px 12px;
+            border-radius: 6px;
+            font-size: 0.85rem;
+            font-family: inherit;
+            cursor: pointer;
+            width: 100%;
+            min-width: 100px;
+            transition: border-color 0.2s;
+        }
+
+        select:hover {
+            border-color: #60a5fa;
+        }
+
+        select:focus {
+            outline: none;
+            border-color: #3b82f6;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.2);
+        }
+
+        select.assigned-shuya {
+            border-color: #34d399;
+            background: rgba(52, 211, 153, 0.08);
+        }
+
+        select.assigned-miko {
+            border-color: #a78bfa;
+            background: rgba(167, 139, 250, 0.08);
+        }
+
+        select.assigned-hiyo {
+            border-color: #f472b6;
+            background: rgba(244, 114, 182, 0.08);
+        }
+
+        select.status-booked {
+            border-color: #60a5fa;
+            background: rgba(96, 165, 250, 0.08);
+        }
+
+        select.status-done {
+            border-color: #34d399;
+            background: rgba(52, 211, 153, 0.08);
+        }
+
+        select.status-cancelled {
+            border-color: #ef4444;
+            background: rgba(239, 68, 68, 0.08);
+        }
+
+        /* Memo textarea - large */
+        .memo-area {
+            background: #0f172a;
+            border: 1px solid #334155;
+            color: #e2e8f0;
+            padding: 12px 14px;
+            border-radius: 8px;
+            font-size: 0.88rem;
+            font-family: inherit;
+            width: 100%;
+            min-width: 280px;
+            min-height: 80px;
+            resize: vertical;
+            line-height: 1.6;
+            transition: border-color 0.2s;
+        }
+
+        .memo-area:hover {
+            border-color: #60a5fa;
+        }
+
+        .memo-area:focus {
+            outline: none;
+            border-color: #3b82f6;
+            background: #131728;
+            box-shadow: 0 0 0 2px rgba(59, 130, 246, 0.15);
+        }
+
+        .memo-area::placeholder {
+            color: #475569;
+        }
+
+        .price {
+            color: #60a5fa;
+            font-weight: 500;
+            white-space: nowrap;
+        }
+
+        .company-name {
+            font-weight: 600;
+            color: #f1f5f9;
+        }
+
+        .period {
+            color: #94a3b8;
+            font-size: 0.85rem;
+        }
+
+        .toast {
+            position: fixed;
+            bottom: 30px;
+            right: 30px;
+            background: #1e293b;
+            border: 1px solid #334155;
+            border-radius: 10px;
+            padding: 14px 24px;
+            color: #e2e8f0;
+            font-size: 0.9rem;
+            box-shadow: 0 10px 30px rgba(0, 0, 0, 0.5);
+            transform: translateY(100px);
+            opacity: 0;
+            transition: all 0.3s ease;
+            z-index: 100;
+        }
+
+        .toast.show {
+            transform: translateY(0);
+            opacity: 1;
+        }
+
+        @media (max-width: 768px) {
+            .header {
+                padding: 16px;
+                flex-direction: column;
+                gap: 12px;
+            }
+
+            .summary-bar {
+                padding: 12px 16px;
+            }
+
+            .filter-bar {
+                padding: 12px 16px;
+            }
+
+            .table-container {
+                padding: 0 8px 20px;
+            }
+
+            th,
+            td {
+                padding: 8px 6px;
+                font-size: 0.8rem;
+            }
+
+            .memo-area {
+                min-width: 200px;
+                min-height: 60px;
+                font-size: 0.8rem;
+            }
+        }
+    </style>
+</head>
+
+<body>
+
+    <div class="header">
+        <div>
+            <h1>🕵️ 競合他社 潜入先 担当振り分けシート</h1>
+            <div class="header-sub">Re:works 成約率向上プロジェクト｜目標：38-40% → 50%</div>
+        </div>
+        <div class="header-actions">
+            <div class="sync-status" id="syncStatus">
+                <div class="sync-dot"></div>
+                <span>リアルタイム同期中</span>
+            </div>
+            <button class="btn btn-secondary" onclick="resetAll()">🔄 リセット</button>
+            <button class="btn btn-export" onclick="exportCSV()">📥 CSV出力</button>
+        </div>
+    </div>
+
+    <div class="summary-bar">
+        <div class="summary-card total">
+            <div class="label">合計</div>
+            <div class="value" id="totalCount">12</div>
+        </div>
+        <div class="summary-card shuya">
+            <div class="label">しゅうや</div>
+            <div class="value" id="shuyaCount">0</div>
+        </div>
+        <div class="summary-card miko">
+            <div class="label">みこ</div>
+            <div class="value" id="mikoCount">0</div>
+        </div>
+        <div class="summary-card hiyo">
+            <div class="label">ひよ</div>
+            <div class="value" id="hiyoCount">0</div>
+        </div>
+        <div class="summary-card unassigned">
+            <div class="label">未割当</div>
+            <div class="value" id="unassignedCount">12</div>
+        </div>
+    </div>
+
+    <div class="filter-bar">
+        <button class="filter-btn active" onclick="filterBy('all', this)">全て</button>
+        <button class="filter-btn" onclick="filterBy('tier-1', this)">🔴 Tier 1</button>
+        <button class="filter-btn" onclick="filterBy('tier-2', this)">🟡 Tier 2</button>
+        <button class="filter-btn" onclick="filterBy('tier-3', this)">🟢 Tier 3</button>
+        <button class="filter-btn" onclick="filterBy('しゅうや', this)">しゅうや</button>
+        <button class="filter-btn" onclick="filterBy('みこ', this)">みこ</button>
+        <button class="filter-btn" onclick="filterBy('ひよ', this)">ひよ</button>
+        <button class="filter-btn" onclick="filterBy('unassigned', this)">未割当</button>
+    </div>
+
+    <div class="table-container">
+        <table>
+            <thead>
+                <tr>
+                    <th>#</th>
+                    <th>Tier</th>
+                    <th>スクール名</th>
+                    <th>価格帯</th>
+                    <th>期間</th>
+                    <th>面談形式</th>
+                    <th>優先度</th>
+                    <th>担当者</th>
+                    <th>ステータス</th>
+                    <th>メモ・感想</th>
+                </tr>
+            </thead>
+            <tbody id="tableBody"></tbody>
+        </table>
+    </div>
+
+    <div class="toast" id="toast"></div>
+
+    <script>
+        // ─── Firebase Init ───
+        const firebaseConfig = {
+            apiKey: "AIzaSyCVvzkIMG4Ji0ozVi4XHl7fZFUWvlfPAw8",
+            authDomain: "reworks-curriculum.firebaseapp.com",
+            databaseURL: "https://reworks-curriculum-default-rtdb.asia-southeast1.firebasedatabase.app",
+            projectId: "reworks-curriculum",
+            storageBucket: "reworks-curriculum.firebasestorage.app",
+            messagingSenderId: "344099776506",
+            appId: "1:344099776506:web:f0a16e315ae74123d2e643"
+        };
+        firebase.initializeApp(firebaseConfig);
+        const db = firebase.database();
+        const dbRef = db.ref('infiltration_assignments');
+
+        // ─── Data ───
+        const DATA = [
+            { id: 1, tier: 1, name: "SAKIYOMI", price: "¥330,000/12ヶ月", period: "12ヶ月", format: "グルコン（週12回・最大5名）", stars: 5 },
+            { id: 2, tier: 1, name: "WEB COACH", price: "¥470,000", period: "6ヶ月", format: "無料カウンセリング", stars: 5 },
+            { id: 3, tier: 1, name: "グラムハック（GramHack）", price: "非公開（高額）", period: "不明", format: "LINE→カウンセリング", stars: 5 },
+            { id: 4, tier: 2, name: "ママキャン（Mamcamp）", price: "非公開", period: "不明", format: "Instagram広告→面談", stars: 3 },
+            { id: 5, tier: 2, name: "フリーランスあや", price: "非公開", period: "不明", format: "LINE→カウンセリング", stars: 3 },
+            { id: 6, tier: 2, name: "リモラボ", price: "¥198,000+月額¥21,780", period: "月額制", format: "無料体験入学→面談", stars: 3 },
+            { id: 7, tier: 3, name: "スキルスキップ", price: "¥595,000〜", period: "5〜9ヶ月", format: "LINE→カウンセリング", stars: 2 },
+            { id: 8, tier: 3, name: "BuzzCollege", price: "¥550,000〜", period: "不明", format: "WEBセミナー→面談", stars: 2 },
+            { id: 9, tier: 3, name: "シーライクス", price: "¥162,800+月額", period: "月額制", format: "無料体験レッスン", stars: 2 },
+            { id: 10, tier: 3, name: "デイトラ", price: "¥99,800", period: "70日", format: "LP購入型（面談なし）", stars: 1 },
+            { id: 11, tier: 3, name: "ONEマーケ", price: "¥513,000", period: "不明", format: "要確認", stars: 1 },
+            { id: 12, tier: 3, name: "エストレ", price: "¥398,000〜", period: "3〜9ヶ月", format: "無料カウンセリング", stars: 1 },
+        ];
+
+        // ─── State ───
+        let currentState = {};
+        let isUpdatingFromFirebase = false;
+
+        function tierBadge(tier) {
+            const labels = { 1: "🔴 Tier 1", 2: "🟡 Tier 2", 3: "🟢 Tier 3" };
+            return `<span class="tier tier-${tier}">${labels[tier]}</span>`;
+        }
+
+        function starsHTML(count) {
+            return '<span class="stars">' + '⭐'.repeat(count) + '</span>';
+        }
+
+        function updateSelectClass(el) {
+            el.className = el.className.replace(/assigned-\w+|status-\w+/g, '').trim();
+            if (el.id.startsWith('assign-')) {
+                if (el.value === 'しゅうや') el.classList.add('assigned-shuya');
+                else if (el.value === 'みこ') el.classList.add('assigned-miko');
+                else if (el.value === 'ひよ') el.classList.add('assigned-hiyo');
+            }
+            if (el.id.startsWith('status-')) {
+                if (el.value === '予約済') el.classList.add('status-booked');
+                else if (el.value === '完了') el.classList.add('status-done');
+                else if (el.value === '見送り') el.classList.add('status-cancelled');
+            }
+        }
+
+        function updateCounts() {
+            let shuya = 0, miko = 0, hiyo = 0, unassigned = 0;
+            DATA.forEach(d => {
+                const a = currentState[d.id]?.assignee || "";
+                if (a === 'しゅうや') shuya++;
+                else if (a === 'みこ') miko++;
+                else if (a === 'ひよ') hiyo++;
+                else unassigned++;
+            });
+            document.getElementById('totalCount').textContent = DATA.length;
+            document.getElementById('shuyaCount').textContent = shuya;
+            document.getElementById('mikoCount').textContent = miko;
+            document.getElementById('hiyoCount').textContent = hiyo;
+            document.getElementById('unassignedCount').textContent = unassigned;
+        }
+
+        function saveToFirebase() {
+            if (isUpdatingFromFirebase) return;
+            dbRef.set(currentState).then(() => {
+                const el = document.getElementById('syncStatus');
+                el.innerHTML = '<div class="sync-dot"></div><span>同期済 ✓</span>';
+            }).catch(e => {
+                const el = document.getElementById('syncStatus');
+                el.innerHTML = '<span style="color:#ef4444">⚠️ 同期エラー</span>';
+            });
+        }
+
+        function onFieldChange(id, field, value) {
+            if (!currentState[id]) currentState[id] = {};
+            currentState[id][field] = value;
+            updateCounts();
+            saveToFirebase();
+        }
+
+        let memoTimers = {};
+        function onMemoChange(id, value) {
+            if (!currentState[id]) currentState[id] = {};
+            currentState[id].memo = value;
+            clearTimeout(memoTimers[id]);
+            memoTimers[id] = setTimeout(() => saveToFirebase(), 800);
+        }
+
+        function renderTable() {
+            const tbody = document.getElementById("tableBody");
+            tbody.innerHTML = DATA.map(d => {
+                const s = currentState[d.id] || {};
+                return `
+        <tr data-tier="tier-${d.tier}" data-assignee="${s.assignee || ''}">
+            <td>${d.id}</td>
+            <td>${tierBadge(d.tier)}</td>
+            <td><div class="company-name">${d.name}</div></td>
+            <td class="price">${d.price}</td>
+            <td class="period">${d.period}</td>
+            <td>${d.format}</td>
+            <td>${starsHTML(d.stars)}</td>
+            <td>
+                <select id="assign-${d.id}" onchange="updateSelectClass(this); onFieldChange(${d.id}, 'assignee', this.value);">
+                    <option value="">未割当</option>
+                    <option value="しゅうや" ${s.assignee === 'しゅうや' ? 'selected' : ''}>しゅうや</option>
+                    <option value="みこ" ${s.assignee === 'みこ' ? 'selected' : ''}>みこ</option>
+                    <option value="ひよ" ${s.assignee === 'ひよ' ? 'selected' : ''}>ひよ</option>
+                </select>
+            </td>
+            <td>
+                <select id="status-${d.id}" onchange="updateSelectClass(this); onFieldChange(${d.id}, 'status', this.value);">
+                    <option value="未着手" ${s.status === '未着手' || !s.status ? 'selected' : ''}>⬜ 未着手</option>
+                    <option value="予約済" ${s.status === '予約済' ? 'selected' : ''}>📅 予約済</option>
+                    <option value="完了" ${s.status === '完了' ? 'selected' : ''}>✅ 完了</option>
+                    <option value="見送り" ${s.status === '見送り' ? 'selected' : ''}>❌ 見送り</option>
+                </select>
+            </td>
+            <td>
+                <textarea class="memo-area" id="memo-${d.id}"
+                    placeholder="面談の感想、気づき、学んだことを記入..."
+                    oninput="onMemoChange(${d.id}, this.value);"
+                >${s.memo || ''}</textarea>
+            </td>
+        </tr>`;
+            }).join('');
+
+            DATA.forEach(d => {
+                const el1 = document.getElementById(`assign-${d.id}`);
+                const el2 = document.getElementById(`status-${d.id}`);
+                if (el1) updateSelectClass(el1);
+                if (el2) updateSelectClass(el2);
+            });
+            updateCounts();
+        }
+
+        function filterBy(filter, btn) {
+            document.querySelectorAll('.filter-btn').forEach(b => b.classList.remove('active'));
+            btn.classList.add('active');
+            document.querySelectorAll('tbody tr').forEach(row => {
+                const tier = row.dataset.tier;
+                const assignee = row.dataset.assignee;
+                if (filter === 'all') row.style.display = '';
+                else if (filter.startsWith('tier-')) row.style.display = tier === filter ? '' : 'none';
+                else if (filter === 'unassigned') row.style.display = !assignee ? '' : 'none';
+                else row.style.display = assignee === filter ? '' : 'none';
+            });
+        }
+
+        function resetAll() {
+            if (confirm('すべての割り当て・ステータス・メモをリセットしますか？')) {
+                currentState = {};
+                dbRef.set({}).then(() => {
+                    renderTable();
+                    showToast('🔄 リセットしました');
+                });
+            }
+        }
+
+        function showToast(msg) {
+            const toast = document.getElementById("toast");
+            toast.textContent = msg;
+            toast.classList.add("show");
+            setTimeout(() => toast.classList.remove("show"), 2500);
+        }
+
+        function exportCSV() {
+            const BOM = '\uFEFF';
+            let csv = BOM + '#,Tier,スクール名,価格帯,期間,面談形式,優先度,担当者,ステータス,メモ\n';
+            DATA.forEach(d => {
+                const s = currentState[d.id] || {};
+                csv += `${d.id},Tier ${d.tier},${d.name},${d.price},${d.period},"${d.format}",${d.stars},${s.assignee || '未割当'},${s.status || '未着手'},"${(s.memo || '').replace(/"/g, '""').replace(/\n/g, ' ')}"\n`;
+            });
+            const blob = new Blob([csv], { type: 'text/csv;charset=utf-8;' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = `潜入先_担当振り分け_${new Date().toISOString().slice(0, 10)}.csv`;
+            a.click();
+            URL.revokeObjectURL(url);
+            showToast('📥 CSVをダウンロードしました');
+        }
+
+        // ─── Firebase Realtime Listener ───
+        dbRef.on('value', snap => {
+            isUpdatingFromFirebase = true;
+            const data = snap.val() || {};
+            currentState = data;
+
+            // Update UI without full re-render (preserve focus)
+            const activeEl = document.activeElement;
+            const activeId = activeEl?.id || '';
+
+            DATA.forEach(d => {
+                const s = data[d.id] || {};
+                const assignEl = document.getElementById(`assign-${d.id}`);
+                const statusEl = document.getElementById(`status-${d.id}`);
+                const memoEl = document.getElementById(`memo-${d.id}`);
+
+                if (assignEl && activeId !== `assign-${d.id}`) {
+                    assignEl.value = s.assignee || '';
+                    updateSelectClass(assignEl);
+                    assignEl.closest('tr').dataset.assignee = s.assignee || '';
+                }
+                if (statusEl && activeId !== `status-${d.id}`) {
+                    statusEl.value = s.status || '未着手';
+                    updateSelectClass(statusEl);
+                }
+                if (memoEl && activeId !== `memo-${d.id}`) {
+                    memoEl.value = s.memo || '';
+                }
+            });
+
+            updateCounts();
+            isUpdatingFromFirebase = false;
+        });
+
+        // Initial render
+        renderTable();
+
+        // Load from Firebase on first load
+        dbRef.once('value').then(snap => {
+            currentState = snap.val() || {};
+            renderTable();
+            const el = document.getElementById('syncStatus');
+            el.innerHTML = '<div class="sync-dot"></div><span>リアルタイム同期中</span>';
+        });
+    </script>
+
+</body>
+
+</html>
